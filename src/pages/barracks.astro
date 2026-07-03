@@ -1,0 +1,240 @@
+---
+import GameLayout from "../layouts/GameLayout.astro";
+---
+
+<GameLayout>
+  <div class="max-w-7xl mx-auto pt-4 pb-20 relative min-h-screen">
+    <div
+      class="flex justify-between items-end mb-6 border-b border-white/10 pb-4"
+    >
+      <div>
+        <h1 class="font-['Teko'] text-6xl text-white leading-none">BARRACKS</h1>
+        <p
+          class="font-['Space_Grotesk'] text-gray-400 text-xs tracking-[0.3em] uppercase"
+        >
+          CREW ROSTER
+        </p>
+      </div>
+      <div class="text-right">
+        <p
+          class="text-[10px] text-gray-500 font-bold uppercase tracking-widest"
+        >
+          ACTIVE POWER
+        </p>
+        <p class="text-gold-400 font-['Teko'] text-4xl" id="team-power">0</p>
+      </div>
+    </div>
+
+    <div
+      class="grid grid-cols-3 gap-4 mb-12 bg-[#0a0a0a] p-6 rounded-xl border border-white/10 relative"
+    >
+      <div
+        class="absolute -top-3 left-6 bg-black px-2 text-xs text-gold-500 font-bold border border-gold-500/30 uppercase tracking-widest"
+      >
+        Active Squad
+      </div>
+      <div
+        id="slot-1"
+        class="slot aspect-[3/4] border-2 border-dashed border-white/20 rounded-lg flex items-center justify-center text-white/20 font-['Teko'] text-3xl relative overflow-hidden cursor-pointer hover:border-white/40 transition-colors"
+      >
+        SLOT 1
+      </div>
+      <div
+        id="slot-2"
+        class="slot aspect-[3/4] border-2 border-dashed border-white/20 rounded-lg flex items-center justify-center text-white/20 font-['Teko'] text-3xl relative overflow-hidden cursor-pointer hover:border-white/40 transition-colors"
+      >
+        SLOT 2
+      </div>
+      <div
+        id="slot-3"
+        class="slot aspect-[3/4] border-2 border-dashed border-white/20 rounded-lg flex items-center justify-center text-white/20 font-['Teko'] text-3xl relative overflow-hidden cursor-pointer hover:border-white/40 transition-colors"
+      >
+        SLOT 3
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center mb-4 px-2">
+        <div class="text-white/50 text-xs font-mono uppercase tracking-widest">
+          Reserve Crew
+        </div>
+        <div
+          id="loading"
+          class="text-gold-500 font-mono text-xs animate-pulse"
+        >
+          Scanning...
+        </div>
+      </div>
+
+      <div
+        id="inventory-grid"
+        class="grid grid-cols-8 gap-4 content-start min-h-[200px] w-full"
+      >
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { supabase } from "../lib/supabase";
+    import { CHARACTERS } from "../data/characters";
+    import { callApi } from "../lib/apiClient";
+
+    let mySquad = [];
+    let currentUserId = null;
+    let activeTeam = [null, null, null];
+    let selectedUnitId = null; // Track what is clicked
+
+    // --- INIT ---
+    async function init() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      currentUserId = user.id;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      if (profile) {
+        activeTeam = [
+          profile.team_slot_1,
+          profile.team_slot_2,
+          profile.team_slot_3,
+        ];
+      }
+
+      const { data: inv } = await supabase
+        .from("inventory")
+        .select("character_id, count, level")
+        .eq("user_id", user.id);
+
+      if (inv && inv.length > 0) {
+        mySquad = inv
+          .map((item) => {
+            const char = CHARACTERS.find((c) => c.id === item.character_id);
+            if (!char) return null;
+            const lvl = item.level || 1;
+            const multiplier = 1 + (lvl - 1) * 0.05;
+            return {
+              ...char,
+              count: item.count,
+              level: lvl,
+              realHp: Math.floor(char.stats.hp * multiplier),
+              realAtk: Math.floor(char.stats.atk * multiplier),
+              powerScore: Math.floor(
+                (char.stats.hp + char.stats.atk) * multiplier,
+              ),
+            };
+          })
+          .filter(Boolean);
+
+        const loader = document.getElementById("loading");
+        if (loader) loader.classList.add("hidden");
+
+        renderDock();
+        renderBubbles();
+      }
+    }
+
+    // --- CLICK HANDLER (Ready for new logic) ---
+    function handleUnitClick(unit) {
+      console.log("CLICKED:", unit.name);
+
+      // HIGHLIGHT LOGIC: Just show us what we clicked for now
+      selectedUnitId = unit.id;
+      renderBubbles(); // Re-render to show highlight border
+    }
+
+    // --- RENDER DOCK ---
+    function renderDock() {
+      let teamPower = 0;
+      [0, 1, 2].forEach((index) => {
+        const charId = activeTeam[index];
+        const slotEl = document.getElementById(`slot-${index + 1}`);
+        slotEl.innerHTML = "";
+
+        if (charId) {
+          const charData = mySquad.find((c) => c.id === charId);
+          if (charData) {
+            teamPower += charData.powerScore;
+            slotEl.innerHTML = `
+              <img src="${charData.image}" class="absolute inset-0 w-full h-full object-cover opacity-80" />
+              <div class="absolute bottom-0 w-full bg-black/80 text-white text-center font-['Teko'] text-xl py-1 leading-none">
+                LVL ${charData.level} ${charData.name.split(" ")[0]}
+              </div>
+              <button class="remove-btn absolute top-2 right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-red-500 z-10">✕</button>
+            `;
+
+            slotEl.querySelector(".remove-btn").onclick = (e) => {
+              e.stopPropagation();
+              updateTeam(index, null);
+            };
+          }
+        } else {
+          slotEl.innerHTML = `<span class="text-white/20 font-['Teko'] text-3xl group-hover:text-white/40">EMPTY</span>`;
+        }
+
+        // Clicking a slot simply clears selection for now
+        slotEl.onclick = () => {
+          selectedUnitId = null;
+          renderBubbles();
+        };
+      });
+      document.getElementById("team-power").innerText =
+        teamPower.toLocaleString();
+    }
+
+    // --- RENDER BUBBLES ---
+    function renderBubbles() {
+      const container = document.getElementById("inventory-grid");
+      container.innerHTML = "";
+      mySquad.forEach((unit) => {
+        const isInTeam = activeTeam.includes(unit.id);
+        const isSelected = selectedUnitId === unit.id; // Check if selected
+
+        const bubble = document.createElement("div");
+
+        // DYNAMIC CLASS
+        let borderClass = "border-white/20"; // Default
+        if (isInTeam) borderClass = "border-gold-500 opacity-50 grayscale"; // In Team
+        if (isSelected)
+          borderClass =
+            "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)] scale-110 z-10"; // Selected (Green Glow)
+
+        bubble.className = `w-full aspect-square rounded-full border-2 ${borderClass} relative overflow-hidden cursor-pointer transition-all duration-200 group`;
+
+        bubble.innerHTML = `
+            <img src="${unit.image}" class="w-full h-full object-cover" />
+            <div class="absolute bottom-0 w-full bg-black/70 text-xs text-white text-center font-mono leading-tight py-1">LVL ${unit.level}</div>
+        `;
+
+        // Navigate to the new page with the character's ID in the URL
+        bubble.onclick = () => {
+          window.location.href = `/inspector?id=${unit.id}`;
+        };
+        container.appendChild(bubble);
+      });
+    }
+
+    async function updateTeam(slotIndex, charId) {
+      const previous = activeTeam[slotIndex];
+      activeTeam[slotIndex] = charId;
+      renderDock();
+      renderBubbles();
+      try {
+        await callApi("/api/team", { slot: slotIndex + 1, characterId: charId });
+      } catch (err) {
+        // Roll back the optimistic UI update if the server rejected it
+        // (e.g. the unit isn't actually owned).
+        activeTeam[slotIndex] = previous;
+        renderDock();
+        renderBubbles();
+        alert("Could not update team: " + err.message);
+      }
+    }
+
+    init();
+  </script>
+</GameLayout>

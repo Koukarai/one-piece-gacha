@@ -1,0 +1,138 @@
+---
+import GameLayout from "../layouts/GameLayout.astro";
+---
+
+<GameLayout>
+  <div class="max-w-4xl mx-auto pt-8">
+    
+    <div class="text-center mb-12">
+      <h1 class="font-['Teko'] text-6xl text-white tracking-widest">CAPTAIN'S QUARTERS</h1>
+      <p class="font-['Space_Grotesk'] text-gray-400 text-sm tracking-[0.3em] uppercase">EDIT YOUR PASSPORT</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+      
+      <div class="bg-[#0a0a0a] border border-white/10 p-8 rounded-xl h-fit">
+        <h2 class="font-['Teko'] text-3xl text-gold-400 mb-6">IDENTITY</h2>
+        
+        <div class="space-y-6">
+          <div class="flex justify-center">
+            <div class="relative w-32 h-32 rounded-full overflow-hidden border-2 border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+              <img id="current-avatar" src="https://api.dicebear.com/7.x/adventurer/svg?seed=Felix" class="w-full h-full object-cover" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">PIRATE NAME</label>
+            <input 
+              type="text" 
+              id="username-input"
+              placeholder="Enter Name..." 
+              class="w-full bg-black border border-white/20 text-white font-['Teko'] text-2xl px-4 py-2 rounded focus:outline-none focus:border-gold-400 uppercase mt-1"
+            />
+          </div>
+
+          <button id="save-btn" class="w-full bg-white text-black font-['Teko'] text-xl py-2 rounded hover:bg-gray-200 transition-colors uppercase tracking-wider">
+            SAVE CHANGES
+          </button>
+          
+          <p id="msg" class="text-center text-xs font-mono h-4"></p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="font-['Teko'] text-3xl text-gray-400 mb-6">SELECT AVATAR IMAGE</h2>
+        <div id="loading" class="text-xs font-mono text-gray-500">Loading collection...</div>
+        
+        <div id="avatar-grid" class="grid grid-cols-4 gap-4">
+           </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    import { supabase } from "../lib/supabase";
+    import { CHARACTERS } from "../data/characters";
+    import { callApi } from "../lib/apiClient";
+
+    let selectedAvatarUrl = null;
+
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if(!user) return;
+
+      // 1. Load Current Profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', user.id)
+        .single();
+
+      if(profile) {
+        const nameInput = document.getElementById('username-input') as HTMLInputElement;
+        const imgPreview = document.getElementById('current-avatar') as HTMLImageElement;
+        
+        if (profile.username && !profile.username.includes('@')) {
+           nameInput.value = profile.username;
+        }
+        if (profile.avatar_url) {
+           imgPreview.src = profile.avatar_url;
+           selectedAvatarUrl = profile.avatar_url;
+        }
+      }
+
+      // 2. Load Inventory for Avatar Selection
+      const { data: inv } = await supabase.from('inventory').select('character_id').eq('user_id', user.id);
+      
+      if(inv) {
+        document.getElementById('loading').style.display = 'none';
+        const grid = document.getElementById('avatar-grid');
+        
+        // Filter unique characters owned
+        const uniqueIds = [...new Set(inv.map(i => i.character_id))];
+        
+        uniqueIds.forEach(id => {
+          const char = CHARACTERS.find(c => c.id === id);
+          if(!char) return;
+
+          const btn = document.createElement('div');
+          btn.className = "aspect-square rounded-lg overflow-hidden border border-white/10 cursor-pointer hover:border-gold-400 hover:scale-105 transition-all opacity-70 hover:opacity-100";
+          btn.innerHTML = `<img src="${char.image}" class="w-full h-full object-cover" />`;
+          
+          btn.addEventListener('click', () => {
+             // Update Preview
+             (document.getElementById('current-avatar') as HTMLImageElement).src = char.image;
+             selectedAvatarUrl = char.image;
+             
+             // Visual feedback
+             Array.from(grid.children).forEach(c => c.classList.remove('border-gold-400', 'opacity-100'));
+             btn.classList.add('border-gold-400', 'opacity-100');
+          });
+          
+          grid.appendChild(btn);
+        });
+      }
+
+      // 3. Save Logic
+      document.getElementById('save-btn').addEventListener('click', async () => {
+         const newName = (document.getElementById('username-input') as HTMLInputElement).value;
+         const msg = document.getElementById('msg');
+         msg.innerText = "SAVING...";
+
+         try {
+           await callApi('/api/profile', { username: newName, avatarUrl: selectedAvatarUrl });
+           msg.innerText = "PROFILE UPDATED!";
+           msg.className = "text-center text-xs font-mono text-green-400";
+           // Small delay then reload to update sidebar
+           setTimeout(() => window.location.reload(), 1000);
+         } catch (err) {
+           msg.innerText = "ERROR SAVING.";
+           msg.className = "text-center text-xs font-mono text-red-400";
+         }
+      });
+    }
+
+    init();
+  </script>
+</GameLayout>

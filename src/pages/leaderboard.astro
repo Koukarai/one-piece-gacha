@@ -1,0 +1,119 @@
+---
+import GameLayout from "../layouts/GameLayout.astro";
+---
+
+<GameLayout>
+  <div class="max-w-5xl mx-auto min-h-screen pb-20">
+    
+    <div class="mb-8 border-b border-white/10 pb-4 flex justify-between items-end">
+        <div>
+            <h1 class="font-['Teko'] text-6xl text-white leading-none uppercase">Bounty Board</h1>
+            <p class="font-mono text-xs text-red-500 tracking-[0.3em] uppercase">Most Wanted Captains</p>
+        </div>
+        <div class="text-right hidden md:block">
+            <p class="text-[10px] text-gray-500 uppercase tracking-widest">Global Rankings</p>
+            <p class="text-white font-bold">Season 1</p>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-6">
+        
+        <div id="rank-1-card" class="hidden w-full bg-gradient-to-r from-gold-900/20 to-black border border-gold-500/30 rounded-xl p-8 relative overflow-hidden flex items-center justify-between">
+            <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+            
+            <div class="relative z-10 flex items-center gap-6">
+                <div class="w-24 h-24 rounded-full border-4 border-gold-500 shadow-[0_0_20px_rgba(230, 162, 60,0.4)] overflow-hidden">
+                    <img id="r1-avatar" src="" class="w-full h-full object-cover" />
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="bg-gold-500 text-black font-black text-xs px-2 py-0.5 uppercase tracking-widest rounded-sm">RANK 1</span>
+                        <span class="text-gold-500 font-['Teko'] text-xl">PIRATE KING</span>
+                    </div>
+                    <h2 id="r1-name" class="text-4xl md:text-5xl font-['Teko'] text-white leading-none uppercase">NAME</h2>
+                </div>
+            </div>
+
+            <div class="relative z-10 text-right">
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest">Total Bounty</p>
+                <p id="r1-bounty" class="text-4xl font-['Teko'] text-gold-400">0</p>
+            </div>
+        </div>
+
+        <div id="ranking-list" class="bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden">
+            <div class="p-8 text-center text-white/20 font-mono text-sm animate-pulse">Fetching Wanted Posters...</div>
+        </div>
+
+    </div>
+  </div>
+
+  <script>
+    import { supabase } from "../lib/supabase";
+
+    async function loadLeaderboard() {
+        // Fetch Top 50 profiles sorted by Berries (High to Low)
+        const { data: players, error } = await supabase
+            .from('profiles')
+            .select('id, username, berries, avatar_url')
+            .order('berries', { ascending: false })
+            .limit(10);
+
+        if(error) {
+            console.error(error);
+            return;
+        }
+
+        if(players && players.length > 0) {
+            renderLeaderboard(players);
+        }
+    }
+
+    function renderLeaderboard(players) {
+        const r1 = players[0];
+        const rest = players.slice(1);
+
+        // RENDER #1
+        const r1Card = document.getElementById('rank-1-card');
+        r1Card.classList.remove('hidden');
+        document.getElementById('r1-name').innerText = formatName(r1.username, r1.id);
+        document.getElementById('r1-bounty').innerText = r1.berries.toLocaleString();
+        document.getElementById('r1-avatar').src = r1.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${r1.id}`;
+
+        // RENDER THE REST
+        const list = document.getElementById('ranking-list');
+        list.innerHTML = '';
+
+        rest.forEach((p, index) => {
+            const rank = index + 2; // Since we started at index 0 which is Rank 2
+            const row = document.createElement('div');
+            row.className = "flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 transition-colors";
+            
+            // Avatar Fallback
+            const avatar = p.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${p.id}`;
+
+            row.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <span class="font-['Teko'] text-2xl text-white/30 w-8 text-center">${rank}</span>
+                    <div class="w-10 h-10 rounded-full bg-gray-800 overflow-hidden border border-white/10">
+                        <img src="${avatar}" class="w-full h-full object-cover">
+                    </div>
+                    <span class="font-bold text-white uppercase tracking-wider text-sm">${formatName(p.username, p.id)}</span>
+                </div>
+                <div class="font-mono text-gold-500/80 text-sm">
+                    ${p.berries.toLocaleString()} B
+                </div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    function formatName(name, id) {
+        if (!name || name.includes('@')) {
+            return "Captain " + id.slice(0,4).toUpperCase();
+        }
+        return name;
+    }
+
+    loadLeaderboard();
+  </script>
+</GameLayout>

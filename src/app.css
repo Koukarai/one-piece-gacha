@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Teko:wght@300..700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* "Treasure" palette — a warmer, more bronze/amber accent than a flat
+     caution-sign yellow, used consistently instead of Tailwind's stock
+     yellow-* so the whole game shares one accent ramp. */
+  --color-gold-300: #f3c374;
+  --color-gold-400: #e6a23c;
+  --color-gold-500: #c8791b;
+  --color-gold-900: #3d2711;
+  --color-ssr: #ff3e3e;
+  --color-sr: #c084fc;
+  --color-r: #60a5fa;
+}
+
+:root {
+  --glass-bg: rgba(8, 8, 10, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(14px);
+
+  --premium-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+body {
+  background-color: #07070a;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--premium-shadow);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Cinematic Glows */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(230, 162, 60, 0.3);
+  border-color: rgba(230, 162, 60, 0.5);
+}
+
+.glow-ssr {
+  box-shadow: 0 0 30px rgba(255, 62, 62, 0.4);
+  border-color: rgba(255, 62, 62, 0.6);
+  animation: pulse-ssr 2s infinite;
+}
+
+@keyframes pulse-ssr {
+  0% { box-shadow: 0 0 20px rgba(255, 62, 62, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(255, 62, 62, 0.6); }
+  100% { box-shadow: 0 0 20px rgba(255, 62, 62, 0.3); }
+}
+
+/* Typography Enhancements */
+.font-teko { font-family: 'Teko', sans-serif; }
+.font-space { font-family: 'Space Grotesk', sans-serif; }
+
+.text-gradient-gold {
+  background: linear-gradient(to bottom, #f3c374, #c8791b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}

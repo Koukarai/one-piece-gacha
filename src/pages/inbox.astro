@@ -1,0 +1,167 @@
+---
+import GameLayout from "../layouts/GameLayout.astro";
+---
+
+<GameLayout>
+  <div class="max-w-6xl mx-auto min-h-[80vh] flex gap-6">
+    
+    <div class="w-1/3 bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden flex flex-col">
+       <div class="p-4 border-b border-white/10 bg-white/5">
+           <h1 class="font-['Teko'] text-3xl text-white tracking-wider">COMMS RELAY</h1>
+           <p class="text-[10px] text-gray-500 uppercase tracking-widest">Unread Messages</p>
+       </div>
+       
+       <div id="mail-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+           <div class="p-4 text-center text-gray-500 text-xs italic">Scanning frequencies...</div>
+       </div>
+    </div>
+
+    <div class="w-2/3 bg-[#0a0a0a] border border-white/10 rounded-xl relative flex flex-col justify-center items-center text-center p-10" id="reading-pane">
+        
+        <div id="empty-state" class="text-white/20">
+            <svg class="w-20 h-20 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2z"></path></svg>
+            <p class="font-mono text-sm uppercase tracking-widest">Select a transmission</p>
+        </div>
+
+        <div id="mail-content" class="hidden w-full h-full flex flex-col text-left">
+            <div class="border-b border-white/10 pb-4 mb-4">
+                <h2 id="mail-title" class="font-bold text-3xl text-white mb-1">TITLE</h2>
+                <span id="mail-date" class="text-xs text-gray-500 font-mono">DATE</span>
+            </div>
+            
+            <p id="mail-body" class="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap">Message body...</p>
+
+            <div id="reward-section" class="mt-auto pt-8 border-t border-white/10">
+                <div class="flex items-center justify-between bg-white/5 p-4 rounded border border-white/10 mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gold-500/20 rounded flex items-center justify-center text-gold-500 text-xl">💰</div>
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-widest">Attached Assets</p>
+                            <p id="reward-amount" class="text-xl font-['Teko'] text-white">0 BERRIES</p>
+                        </div>
+                    </div>
+                    <div id="status-badge" class="px-3 py-1 bg-green-900/30 text-green-500 text-xs font-bold border border-green-500/30 rounded uppercase tracking-widest hidden">
+                        CLAIMED
+                    </div>
+                </div>
+
+                <button id="btn-claim" class="w-full py-4 bg-gold-500 hover:bg-gold-400 text-black font-bold font-['Teko'] text-2xl uppercase tracking-widest transition-colors shadow-lg">
+                    CLAIM ATTACHMENT
+                </button>
+            </div>
+        </div>
+
+    </div>
+  </div>
+
+  <script>
+    import { supabase } from "../lib/supabase";
+    import { callApi } from "../lib/apiClient";
+
+    let mails = [];
+    let activeMail = null;
+
+    async function loadInbox() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+
+        // Fetch Mail
+        const { data, error } = await supabase
+            .from('inbox')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+
+        if(data) {
+            mails = data;
+            renderList();
+        }
+    }
+
+    function renderList() {
+        const list = document.getElementById('mail-list');
+        list.innerHTML = '';
+
+        if(mails.length === 0) {
+            list.innerHTML = `<div class="p-8 text-center text-gray-600 text-xs font-mono">NO MESSAGES FOUND</div>`;
+            return;
+        }
+
+        mails.forEach(mail => {
+            const el = document.createElement('div');
+            // Style based on read/claimed status
+            const opacity = mail.is_claimed ? 'opacity-50' : 'opacity-100';
+            const border = activeMail?.id === mail.id ? 'border-gold-500 bg-white/10' : 'border-white/5 hover:bg-white/5';
+            
+            el.className = `p-4 border rounded cursor-pointer transition-all mb-2 ${opacity} ${border}`;
+            el.innerHTML = `
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-sm text-white truncate pr-2">${mail.title}</span>
+                    ${!mail.is_claimed ? '<span class="w-2 h-2 rounded-full bg-gold-500 shrink-0 mt-1"></span>' : ''}
+                </div>
+                <div class="text-[10px] text-gray-500 font-mono">${new Date(mail.created_at).toLocaleDateString()}</div>
+            `;
+            el.onclick = () => openMail(mail);
+            list.appendChild(el);
+        });
+    }
+
+    function openMail(mail) {
+        activeMail = mail;
+        renderList(); // Update highlight
+
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('mail-content').classList.remove('hidden');
+
+        document.getElementById('mail-title').innerText = mail.title;
+        document.getElementById('mail-date').innerText = new Date(mail.created_at).toLocaleString();
+        document.getElementById('mail-body').innerText = mail.message;
+
+        // Reward Logic
+        const rewardSection = document.getElementById('reward-section');
+        const btnClaim = document.getElementById('btn-claim');
+        const statusBadge = document.getElementById('status-badge');
+        const rewardAmount = document.getElementById('reward-amount');
+
+        if (mail.reward_amount && mail.reward_amount > 0) {
+            rewardSection.classList.remove('hidden');
+            rewardAmount.innerText = `${mail.reward_amount.toLocaleString()} BERRIES`;
+
+            if (mail.is_claimed) {
+                btnClaim.classList.add('hidden');
+                statusBadge.classList.remove('hidden');
+            } else {
+                btnClaim.classList.remove('hidden');
+                statusBadge.classList.add('hidden');
+                btnClaim.onclick = () => claimReward(mail.id);
+            }
+        } else {
+            rewardSection.classList.add('hidden');
+        }
+    }
+
+    async function claimReward(mailId) {
+        const btn = document.getElementById('btn-claim');
+        btn.disabled = true;
+        btn.innerText = "PROCESSING...";
+
+        try {
+            await callApi('/api/inbox/claim', { mailId });
+
+            // Success! Update local data and UI
+            const mailIndex = mails.findIndex(m => m.id === mailId);
+            if(mailIndex > -1) {
+                mails[mailIndex].is_claimed = true;
+                openMail(mails[mailIndex]); // Refresh right pane
+                renderList(); // Refresh left list
+            }
+        } catch (err) {
+            alert("Error claiming: " + err.message);
+            btn.disabled = false;
+            btn.innerText = "TRY AGAIN";
+        }
+    }
+
+    loadInbox();
+  </script>
+</GameLayout>

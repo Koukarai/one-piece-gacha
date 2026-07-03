@@ -1,0 +1,215 @@
+---
+import GameLayout from "../layouts/GameLayout.astro";
+---
+
+<GameLayout>
+  <div class="relative w-full min-h-screen flex justify-center items-center p-4">
+    
+    <a href="/barracks" class="absolute top-8 left-8 z-50 text-white/50 hover:text-white flex items-center gap-2 transition-colors uppercase font-mono text-xs tracking-widest">
+      <span class="text-lg">←</span> Return to Barracks
+    </a>
+
+    <div id="loading" class="text-gold-500 font-mono text-sm animate-pulse tracking-widest uppercase absolute">
+      Loading Unit Data...
+    </div>
+
+    <div id="dossier" class="hidden flex  md:flex-row gap-8 items-start max-w-5xl w-full">
+        
+        <div class="relative top-15 w-[400px] md:w-[100px] h-[600px] md:h-[275px] rounded-xl overflow-hidden border-2 border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.2)] bg-[#0a0a0a] shrink-0">
+            <img id="char-image" src="" class="absolute inset-0 w-full h-full object-cover" />
+            
+            <div class="absolute bottom-0 w-full bg-gradient-to-t from-black via-black/70 to-transparent pt-20 pb-6 px-6">
+                <h1 id="char-name" class="text-white font-bold text-3xl uppercase leading-none mb-2">NAME</h1>
+
+
+                <div class="flex justify-between items-center font-mono text-xs">
+                     <span id="char-hp-text" class="text-green-400 font-bold">0 HP</span>
+                     <span id="char-role" class="text-white/100 uppercase tracking-widest">ROLE</span>
+                </div>
+            </div>
+
+            <div id="char-rarity" class="absolute top-4 left-4 bg-gold-500 text-black font-bold px-3 py-1 text-xs uppercase tracking-widest rounded-sm">
+                SSR
+            </div>
+            
+             <div id="char-level" class="absolute top-4 right-4 bg-black/80 border border-white/20 text-white font-bold px-3 py-1 text-xl font-mono rounded-sm">
+                LVL 1
+            </div>
+        </div>
+
+
+        <div class="relative top-15 w-[400px] h-[600px] flex-col gap-4 w-full bg-[#0a0a0a] p-6 rounded-xl border border-white/10">
+            
+            <div class="bg-white/5 p-4 rounded-lg border border-white/5">
+                <h3 class="text-gold-500 font-bold uppercase text-sm mb-1 tracking-wider">Passive Ability</h3>
+                <div id="passive-name" class="text-white font-bold uppercase mb-2">Passive Name</div>
+                <p id="passive-desc" class="text-gray-400 text-sm leading-relaxed">Description of the passive ability goes here.</p>
+            </div>
+
+            <div class="bg-white/5 p-4 rounded-lg border border-white/5">
+                 <h3 class="text-blue-400 font-bold uppercase text-sm mb-3 tracking-wider">Active Skills</h3>
+                 <div id="skills-list" class="space-y-4">
+                     </div>
+             </div>
+             
+            <div class="bg-white/5 p-4 rounded-lg border border-white/5 flex justify-between items-center">
+                 <span class="text-white/50 uppercase tracking-widest text-xs font-mono">Total Combat Power</span>
+                 <span id="char-power" class="text-white font-bold text-2xl">0</span>
+             </div>
+
+
+            <div class="mt-auto pt-4 space-y-3">
+                <button id="btn-equip" class="w-full py-4 bg-green-600 text-white font-bold text-xl uppercase tracking-widest hover:bg-green-500 transition-colors rounded-lg shadow-[0_0_20px_rgba(34,197,94,0.4)]">
+                    DEPLOY TO SQUAD
+                </button>
+                
+                <button id="btn-train" class="w-full flex justify-between items-center px-6 py-4 border border-white/10 bg-white/5 font-bold uppercase hover:bg-white/10 transition-colors rounded-lg text-sm">
+                    <span>TRAIN UNIT (+Power)</span>
+                    <span id="train-cost" class="text-white/50 font-mono">COST: 200 B</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+  </div>
+
+  <script>
+    import { supabase } from "../lib/supabase";
+    import { CHARACTERS } from "../data/characters";
+    import { callApi } from "../lib/apiClient";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const charId = urlParams.get('id');
+    let currentUnit = null;
+    let currentUser = null;
+    let activeTeam = [null, null, null];
+
+    async function loadInspector() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) { window.location.href = '/'; return; }
+        currentUser = user;
+
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profile) activeTeam = [profile.team_slot_1, profile.team_slot_2, profile.team_slot_3];
+
+        const { data: inv } = await supabase.from('inventory').select('*').eq('user_id', user.id).eq('character_id', charId).single();
+        
+        if (!inv) {
+            alert("Unit not found in barracks!");
+            window.location.href = '/barracks';
+            return;
+        }
+
+        const staticData = CHARACTERS.find(c => c.id === charId);
+        const lvl = inv.level || 1;
+        const multiplier = 1 + ((lvl - 1) * 0.05);
+
+        currentUnit = {
+            ...staticData,
+            level: lvl,
+            realHp: Math.floor(staticData.stats.hp * multiplier),
+            realPower: Math.floor((staticData.stats.hp + staticData.stats.atk) * multiplier)
+        };
+        renderPage();
+    }
+
+    function renderPage() {
+        // --- RENDER LEFT CARD ---
+        document.getElementById('char-image').src = currentUnit.image;
+        document.getElementById('char-name').innerText = currentUnit.name;
+        document.getElementById('char-role').innerText = currentUnit.role;
+        document.getElementById('char-rarity').innerText = currentUnit.rarity;
+        document.getElementById('char-level').innerText = `LVL ${currentUnit.level}`;
+        document.getElementById('char-hp-text').innerText = `${currentUnit.realHp.toLocaleString()} HP`;
+
+        // --- RENDER RIGHT DATA PANEL ---
+        document.getElementById('char-power').innerText = currentUnit.realPower.toLocaleString();
+        
+        // Passive (Assumes data structure exists)
+        document.getElementById('passive-name').innerText = currentUnit.passive?.name || 'None';
+        document.getElementById('passive-desc').innerText = currentUnit.passive?.desc || 'No passive ability available.';
+
+        // Skills Loop (Assumes data structure exists)
+        const skillsContainer = document.getElementById('skills-list');
+        skillsContainer.innerHTML = '';
+        if(currentUnit.skills && currentUnit.skills.length > 0) {
+            currentUnit.skills.forEach(skill => {
+                skillsContainer.innerHTML += `
+                    <div class="border-l-2 border-blue-500/50 pl-4">
+                        <div class="flex justify-between items-baseline mb-1">
+                            <span class="text-white font-bold uppercase text-sm">${skill.name}</span>
+                            <span class="text-[10px] text-blue-400 font-mono uppercase">${skill.type || 'Active'}</span>
+                        </div>
+                        <p class="text-gray-400 text-xs leading-relaxed">${skill.desc}</p>
+                    </div>
+                `;
+            });
+        } else {
+            skillsContainer.innerHTML = '<p class="text-gray-500 text-sm">No active skills data.</p>';
+        }
+
+
+        // --- RENDER BUTTONS ---
+        const cost = 200 * currentUnit.level;
+        document.getElementById('train-cost').innerText = `COST: ${cost.toLocaleString()} B`;
+
+        const equipBtn = document.getElementById('btn-equip');
+        if (activeTeam.includes(currentUnit.id)) {
+            equipBtn.innerText = "RECALL FROM SQUAD";
+            equipBtn.classList.remove('bg-green-600', 'hover:bg-green-500', 'shadow-[0_0_20px_rgba(34,197,94,0.4)]');
+            equipBtn.classList.add('bg-red-600', 'hover:bg-red-500', 'shadow-[0_0_20px_rgba(220,38,38,0.4)]');
+            equipBtn.onclick = removeFromSquad;
+        } else {
+            equipBtn.innerText = "DEPLOY TO SQUAD";
+            equipBtn.classList.remove('bg-red-600', 'hover:bg-red-500', 'shadow-[0_0_20px_rgba(220,38,38,0.4)]');
+            equipBtn.classList.add('bg-green-600', 'hover:bg-green-500', 'shadow-[0_0_20px_rgba(34,197,94,0.4)]');
+            equipBtn.onclick = addToSquad;
+        }
+
+        document.getElementById('btn-train').onclick = trainUnit;
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('dossier').classList.remove('hidden');
+    }
+
+    // --- ACTION FUNCTIONS ---
+    async function addToSquad() {
+        const emptyIndex = activeTeam.indexOf(null);
+        if (emptyIndex === -1) {
+            alert("Squad full! Recall a unit first.");
+            return;
+        }
+        try {
+            await callApi('/api/team', { slot: emptyIndex + 1, characterId: currentUnit.id });
+            window.location.href = '/barracks';
+        } catch (err) {
+            alert("Could not deploy unit: " + err.message);
+        }
+    }
+
+    async function removeFromSquad() {
+        const index = activeTeam.indexOf(currentUnit.id);
+        if (index > -1) {
+            try {
+                await callApi('/api/team', { slot: index + 1, characterId: null });
+                window.location.href = '/barracks';
+            } catch (err) {
+                alert("Could not recall unit: " + err.message);
+            }
+        }
+    }
+
+    async function trainUnit() {
+        const cost = 200 * currentUnit.level;
+        if(confirm(`Train for ${cost} Berries?`)) {
+             try {
+                await callApi('/api/train', { characterId: currentUnit.id });
+                location.reload();
+             } catch (err) {
+                alert("Could not train unit: " + err.message);
+             }
+        }
+    }
+
+    loadInspector();
+  </script>
+</GameLayout>
