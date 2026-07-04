@@ -4,7 +4,31 @@ A running record of what happened in each work session on this project. Updated 
 
 ---
 
-## 2026-07-04 — First live playtest of the rebuilt Phase 1 features
+## 2026-07-04 (session 2) — Systems & Redesign Pass, part 1: economy, content, retention
+
+**Context:** After playtesting Phase 1, did a full audit of the game's *design* (not just visuals): the Arena had no cost/cooldown (proven farmable by looping the endpoint with zero friction), duplicate summons were cosmetic-only, there was one fight forever, the leaderboard ranked raw currency instead of squad strength, and there was exactly one retention hook ever. User chose to fix all of it. Full plan at `C:\Users\terry\.claude\plans\crispy-sprouting-porcupine.md`. Visual redesign itself is saved for last, once systems are final.
+
+**Built and live-verified, all via a new migration (`supabase/migrations/20260704010000_progression_systems.sql`, applied through the Studio SQL Editor — CLI direct-DB access is still flaky/intermittent on this project, same as before):**
+- **Energy/stamina** (`src/game/energy.ts`) — closes the infinite-Arena-grind hole. Lazy regen (no cron), 1 energy per 5 min, spent via a new `spend_energy_commit` RPC. Arena UI shows the bar and disables Deploy when insufficient.
+- **Duplicate shards** (`leveling.ts`) — levels 10+ now consume 1 duplicate per level-up (via the existing `inventory.count` field, no schema change needed for this part), giving dupes real value for the first time.
+- **Arena stages** (`src/game/stages.ts`) — 5 stages, escalating difficulty (reusing existing enemy templates scaled by a multiplier, no new art needed), sequential unlock tracked via `profiles.highest_stage_cleared`.
+- **Power leaderboard** — `profiles.team_power`, recomputed via `src/lib/teamPower.ts` after team/train changes, toggle on the leaderboard page between Bounty and Crew Power.
+- **Daily login streak** — reuses the existing inbox/claim pattern, reward scales with streak (capped at day 7), auto-claimed silently once per day from `GameLayout.astro` with a toast notification.
+- **Daily quests** (`src/game/dailyQuests.ts`) — summon 3×, win 1 battle, train once; tracked via a new `daily_quest_progress` table, surfaced as a panel on the dashboard.
+
+**Two real bugs found during live playtesting (not just written, actually clicked through and cross-checked against the DB):**
+1. **Shard-gating off-by-one** — `requiresShardToLevelUp` checked the *current* level instead of the level being leveled *into*, so leveling 9→10 (which should cost a shard) went through for free. The original test for this was accidentally asserting the buggy behavior. Fixed the logic and rewrote the test to match the actually-intended behavior; re-verified live (9→10 with 1 copy now correctly rejected, with 2 copies correctly consumes 1 and succeeds).
+2. **Leaderboard tab race condition** — switching the Bounty/Crew-Power tab quickly (or right after page load) could let a slower, stale fetch overwrite a newer one's render. Fixed with a request-token guard.
+
+**Also:** dev server port 4321 was occupied by a stray leftover process; enabled `autoPort` in `.claude/launch.json` since nothing here depends on a fixed port.
+
+**Left for the user / next session:**
+- Test account currently has inflated berries and a level-10 Buggy from this session's live-testing — fine for a dev account, flag if you want it reset before treating it as "real."
+- Visual redesign pass (item 4 of the plan) — still last on purpose, now that the underlying systems are actually final.
+
+---
+
+## 2026-07-04 (session 1) — First live playtest of the rebuilt Phase 1 features
 
 **Context:** GitHub repo was created (`github.com/Koukarai/one-piece-gacha`) and pushed to. First real playtest of every rebuilt feature against the live backend, using the account created last session.
 

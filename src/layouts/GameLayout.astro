@@ -83,6 +83,31 @@ import "../app.css";
 
     <script>
       import { supabase } from "../lib/supabase";
+      import { callApi } from "../lib/apiClient";
+
+      function showDailyLoginToast(streak: number, reward: number) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-6 right-6 z-[200] glass-dark border border-gold-500/40 rounded-2xl px-6 py-4 text-white shadow-2xl transition-all duration-500';
+        toast.innerHTML = `
+          <div class="font-teko text-2xl text-gold-400 uppercase leading-none mb-1">Day ${streak} Login Bonus</div>
+          <div class="text-xs text-gray-400 font-space uppercase tracking-widest">+${reward} Berries — check your Inbox</div>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(-10px)';
+          setTimeout(() => toast.remove(), 500);
+        }, 4000);
+      }
+
+      async function claimDailyLogin() {
+        try {
+          const result = await callApi('/api/daily/login');
+          if (result.claimed) showDailyLoginToast(result.streak, result.reward);
+        } catch {
+          // Not critical — a background reward claim failing silently is fine.
+        }
+      }
 
       async function loadProfile() {
         const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +118,8 @@ import "../app.css";
           }
           return;
         }
+
+        claimDailyLogin();
 
         const { data: profile, error } = await supabase
           .from('profiles')

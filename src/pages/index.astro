@@ -79,11 +79,20 @@ import GameLayout from "../layouts/GameLayout.astro";
       </div>
 
     </div>
+
+    <!-- DAILY QUESTS -->
+    <div class="glass-dark border border-white/5 p-8 rounded-3xl mt-6">
+      <h3 class="font-teko text-3xl text-gray-500 mb-6 tracking-wide uppercase">Daily Quests</h3>
+      <div id="quest-list" class="space-y-3">
+        <p class="text-gray-600 text-sm font-space">Loading quests...</p>
+      </div>
+    </div>
   </div>
-  
+
   <script>
     import { supabase } from "../lib/supabase";
-    
+    import { callApi } from "../lib/apiClient";
+
     async function updateDashboard() {
        const { data: { user } } = await supabase.auth.getUser();
        if(user) {
@@ -102,6 +111,42 @@ import GameLayout from "../layouts/GameLayout.astro";
           if(countEl) countEl.innerText = (count || "0").toString();
        }
     }
+
+    async function loadQuests() {
+      const list = document.getElementById('quest-list');
+      try {
+        const { quests } = await callApi('/api/daily/quests');
+        if (!list) return;
+        list.innerHTML = quests.map((q) => `
+          <div class="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/[0.02]">
+            <div>
+              <p class="text-white font-space font-bold text-sm">${q.label}</p>
+              <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">${Math.min(q.progress, q.threshold)} / ${q.threshold} — reward ${q.reward} ฿</p>
+            </div>
+            ${q.claimed
+              ? '<span class="text-[10px] text-green-400 uppercase font-black tracking-widest">Claimed</span>'
+              : `<button data-quest-key="${q.key}" class="quest-claim-btn px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${q.complete ? 'bg-gold-400 text-black hover:bg-gold-300' : 'bg-white/5 text-gray-600 cursor-not-allowed'}" ${q.complete ? '' : 'disabled'}>Claim</button>`
+            }
+          </div>
+        `).join('');
+
+        list.querySelectorAll('.quest-claim-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const key = (btn as HTMLElement).dataset.questKey;
+            try {
+              await callApi('/api/daily/quests/claim', { questKey: key });
+              loadQuests();
+            } catch (err: any) {
+              alert('Could not claim quest: ' + err.message);
+            }
+          });
+        });
+      } catch (err) {
+        if (list) list.innerHTML = '<p class="text-gray-600 text-sm font-space">Sign in to track daily quests.</p>';
+      }
+    }
+
     updateDashboard();
+    loadQuests();
   </script>
 </GameLayout>

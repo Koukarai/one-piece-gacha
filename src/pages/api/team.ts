@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { jsonResponse, requireUser, supabaseAdmin } from "../../lib/supabaseServer";
+import { recomputeTeamPower } from "../../lib/teamPower";
 
 export const prerender = false;
 
@@ -36,6 +37,8 @@ export const POST: APIRoute = async ({ request }) => {
     .eq("id", user.id);
 
   if (updateError) return jsonResponse({ error: updateError.message }, 400);
+
+  await recomputeTeamPower(user.id);
 
   return jsonResponse({ slot, characterId });
 };

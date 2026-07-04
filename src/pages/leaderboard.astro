@@ -7,12 +7,12 @@ import GameLayout from "../layouts/GameLayout.astro";
     
     <div class="mb-8 border-b border-white/10 pb-4 flex justify-between items-end">
         <div>
-            <h1 class="font-['Teko'] text-6xl text-white leading-none uppercase">Bounty Board</h1>
-            <p class="font-mono text-xs text-red-500 tracking-[0.3em] uppercase">Most Wanted Captains</p>
+            <h1 id="board-title" class="font-['Teko'] text-6xl text-white leading-none uppercase">Bounty Board</h1>
+            <p id="board-subtitle" class="font-mono text-xs text-red-500 tracking-[0.3em] uppercase">Most Wanted Captains</p>
         </div>
-        <div class="text-right hidden md:block">
-            <p class="text-[10px] text-gray-500 uppercase tracking-widest">Global Rankings</p>
-            <p class="text-white font-bold">Season 1</p>
+        <div class="flex gap-2">
+            <button id="tab-bounty" class="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest border border-gold-500 bg-gold-500/10 text-gold-400">Bounty</button>
+            <button id="tab-power" class="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest border border-white/10 text-gray-400 hover:border-white/30">Crew Power</button>
         </div>
     </div>
 
@@ -50,13 +50,37 @@ import GameLayout from "../layouts/GameLayout.astro";
   <script>
     import { supabase } from "../lib/supabase";
 
-    async function loadLeaderboard() {
-        // Fetch Top 50 profiles sorted by Berries (High to Low)
+    const MODES = {
+        bounty: { column: 'berries', title: 'Bounty Board', subtitle: 'Most Wanted Captains', label: 'Total Bounty', suffix: '฿', rank1Class: 'PIRATE KING' },
+        power: { column: 'team_power', title: 'Power Rankings', subtitle: 'Strongest Crews on the Sea', label: 'Crew Power', suffix: '', rank1Class: 'STRONGEST CREW' },
+    };
+    let latestRequestId = 0;
+
+    async function loadLeaderboard(mode) {
+        const requestId = ++latestRequestId;
+        const config = MODES[mode];
+
+        document.getElementById('board-title').innerText = config.title;
+        document.getElementById('board-subtitle').innerText = config.subtitle;
+
+        const bountyTab = document.getElementById('tab-bounty');
+        const powerTab = document.getElementById('tab-power');
+        const activeClasses = ['border-gold-500', 'bg-gold-500/10', 'text-gold-400'];
+        const inactiveClasses = ['border-white/10', 'text-gray-400'];
+
+        [bountyTab, powerTab].forEach((tab) => tab.classList.remove(...activeClasses, ...inactiveClasses));
+        (mode === 'bounty' ? bountyTab : powerTab).classList.add(...activeClasses);
+        (mode === 'bounty' ? powerTab : bountyTab).classList.add(...inactiveClasses);
+
         const { data: players, error } = await supabase
             .from('profiles')
-            .select('id, username, berries, avatar_url')
-            .order('berries', { ascending: false })
+            .select(`id, username, avatar_url, ${config.column}`)
+            .order(config.column, { ascending: false })
             .limit(10);
+
+        // A newer request has started since this one was fired — its
+        // result is stale, discard it so it can't clobber a later render.
+        if (requestId !== latestRequestId) return;
 
         if(error) {
             console.error(error);
@@ -64,11 +88,11 @@ import GameLayout from "../layouts/GameLayout.astro";
         }
 
         if(players && players.length > 0) {
-            renderLeaderboard(players);
+            renderLeaderboard(players, config);
         }
     }
 
-    function renderLeaderboard(players) {
+    function renderLeaderboard(players, config) {
         const r1 = players[0];
         const rest = players.slice(1);
 
@@ -76,7 +100,7 @@ import GameLayout from "../layouts/GameLayout.astro";
         const r1Card = document.getElementById('rank-1-card');
         r1Card.classList.remove('hidden');
         document.getElementById('r1-name').innerText = formatName(r1.username, r1.id);
-        document.getElementById('r1-bounty').innerText = r1.berries.toLocaleString();
+        document.getElementById('r1-bounty').innerText = (r1[config.column] || 0).toLocaleString();
         document.getElementById('r1-avatar').src = r1.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${r1.id}`;
 
         // RENDER THE REST
@@ -87,7 +111,7 @@ import GameLayout from "../layouts/GameLayout.astro";
             const rank = index + 2; // Since we started at index 0 which is Rank 2
             const row = document.createElement('div');
             row.className = "flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 transition-colors";
-            
+
             // Avatar Fallback
             const avatar = p.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${p.id}`;
 
@@ -100,7 +124,7 @@ import GameLayout from "../layouts/GameLayout.astro";
                     <span class="font-bold text-white uppercase tracking-wider text-sm">${formatName(p.username, p.id)}</span>
                 </div>
                 <div class="font-mono text-gold-500/80 text-sm">
-                    ${p.berries.toLocaleString()} B
+                    ${(p[config.column] || 0).toLocaleString()}${config.suffix}
                 </div>
             `;
             list.appendChild(row);
@@ -114,6 +138,9 @@ import GameLayout from "../layouts/GameLayout.astro";
         return name;
     }
 
-    loadLeaderboard();
+    document.getElementById('tab-bounty').addEventListener('click', () => loadLeaderboard('bounty'));
+    document.getElementById('tab-power').addEventListener('click', () => loadLeaderboard('power'));
+
+    loadLeaderboard('bounty');
   </script>
 </GameLayout>
