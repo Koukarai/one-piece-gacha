@@ -4,6 +4,34 @@ A running record of what happened in each work session on this project. Updated 
 
 ---
 
+## 2026-07-04 — First live playtest of the rebuilt Phase 1 features
+
+**Context:** GitHub repo was created (`github.com/Koukarai/one-piece-gacha`) and pushed to. First real playtest of every rebuilt feature against the live backend, using the account created last session.
+
+**Verified working end-to-end (server-authoritative, checked directly against the DB, not just the UI):**
+- `/api/summon` — deducts berries correctly, updates inventory, isolated single-call test confirmed exactly one summon per one request.
+- `/api/team` — deploy/recall to squad slots persists correctly, ownership validated.
+- `/api/train` — cost/level-up persists correctly (Buggy: level 1 → 2, 200 berries deducted).
+- `/api/battle/start` — both outcomes verified: loss grants 0 berries, win grants exactly 250 and logs to `battle_logs`.
+- `/api/inbox/claim` — reward credited correctly, and double-claiming the same mail is properly rejected (400, "already claimed").
+
+**Bugs found and fixed:**
+- `GachaCard.jsx`'s double-submit guard used React state (`isSummoning`) instead of a ref, leaving a real (if narrow) window where two rapid clicks could both slip past the check before a state update commits. Fixed with a `useRef`-based guard that's synchronous.
+- `card-back-pattern.png` was a typo'd asset reference (404) — the actual file is `card-back.png`. Fixed.
+
+**Noted, not fixed (low priority / needs art, not code):**
+- Sidebar berries/crew-size counters don't live-update after an action (summon/train/battle) without a full page reload — same pre-existing pattern as the original app, not a regression, just never fixed.
+- `login.astro` references `/assets/map-bg.png`, which was never actually created — the background silently no-ops. Needs an actual asset, not a code fix.
+- `public/assets/phil.png` exists but is referenced nowhere in the code — likely leftover/unused.
+
+**Observed but not fully explained:** during automated browser testing, the test account accumulated far more summons/actions (pity_count reached 6, ~10 total summons, an unprompted team-slot assignment) than were explicitly triggered. An isolated, single direct HTTP call to `/api/summon` proved the server does exactly one unit of work per request, so this reads as dev-tooling/automation noise (e.g., the dev toolbar's Audit feature interacting with the page) rather than an application bug — but flagging in case it recurs, since it wasn't run to full ground truth.
+
+**Left for the user:**
+- Test account (`terryokeke@gmail.com`) now has a cluttered inventory (Buggy x6, Arlong x2, Zoro x1, Sanji x1, berries topped up to 5000+ for testing) — fine for continued dev use, but let me know if you want it reset to a clean slate before treating this as your "real" account.
+- `/assets/map-bg.png` still needs an actual image if the login page background is wanted.
+
+---
+
 ## 2026-07-03 (session 2) — Live Supabase project stood up, IP direction decided
 
 **Context:** Continuation of the rebuild. Also branched into a side conversation about giving the game an original IP long-term — resolved (see below) — and worked through getting an actual live Supabase backend running for the first time.

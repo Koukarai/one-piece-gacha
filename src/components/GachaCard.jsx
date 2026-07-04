@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { 
   motion, 
   AnimatePresence, 
@@ -19,6 +19,7 @@ export default function GachaCard() {
   const [cardKey, setCardKey] = useState(0);
   const [rarityColor, setRarityColor] = useState("rgba(255,255,255,0.1)");
   const [errorMessage, setErrorMessage] = useState(null);
+  const summonInFlightRef = useRef(false);
 
   // --- REAL DATA STATE ---
   const [inventory, setInventory] = useState([]);
@@ -67,7 +68,8 @@ export default function GachaCard() {
   const handleMouseLeave = () => { x.set(0); y.set(0); };
 
   async function handleSummon() {
-    if (!userId || berries < SUMMON_COST || isSummoning) return;
+    if (!userId || berries < SUMMON_COST || summonInFlightRef.current) return;
+    summonInFlightRef.current = true;
 
     setErrorMessage(null);
     setIsSummoning(true);
@@ -80,6 +82,7 @@ export default function GachaCard() {
       setErrorMessage(err.message);
       setIsSummoning(false);
       setIsFlipped(false);
+      summonInFlightRef.current = false;
       return;
     }
 
@@ -100,6 +103,7 @@ export default function GachaCard() {
       setIsFlipped(false);
       setCardKey((prev) => prev + 1);
       setBerries(result.newBerries);
+      summonInFlightRef.current = false;
 
       setInventory((prev) => {
         const exists = prev.find((i) => i.id === newChar.id);
@@ -191,7 +195,7 @@ export default function GachaCard() {
 
               {/* BACK (Logo) */}
               <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden glass-dark border border-white/5 [backface-visibility:hidden] [transform:rotateY(180deg)] flex items-center justify-center bg-[#0a0a0a]">
-                <div className="absolute inset-0 bg-[url('/assets/card-back-pattern.png')] opacity-10 bg-repeat bg-center"></div>
+                <div className="absolute inset-0 bg-[url('/assets/card-back.png')] opacity-10 bg-repeat bg-center"></div>
                 <div className="relative z-10 flex flex-col items-center">
                   <div className={`w-32 h-32 rounded-full border-4 ${isSummoning ? 'border-gold-500 animate-spin border-t-transparent' : 'border-white/10'} flex items-center justify-center transition-all duration-500`}>
                     <span className="font-teko text-6xl text-white italic tracking-tighter opacity-20">GL</span>
